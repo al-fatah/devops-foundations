@@ -1,0 +1,27 @@
+stages:
+- test
+- deploy
+- teardown
+variables:
+  DOCKER_HOST: unix:///var/run/docker.sock
+unit-test:
+  stage: test
+  script: docker compose run --rm unit-tests
+  after_script: docker compose stop selenium website
+deploy:
+  stage: deploy
+  script: docker compose run --rm opentofu apply -auto-approve
+  before_script: docker compose run --rm opentofu init
+integration-test:
+  dependencies:
+  - deploy
+  stage: deploy
+  script: |
+    export WEBSITE_URL="http://$(docker compose run --rm opentofu output -raw website_url)"
+    docker compose run --rm integration-tests
+  before_script: docker compose up -d selenium website
+  after_script: docker compose stop selenium website
+destroy:
+  stage: teardown
+  script: docker-compose run --rm opentofu destroy -auto-approve
+  before_script: docker compose run --rm opentofu init
